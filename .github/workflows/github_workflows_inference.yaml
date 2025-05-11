@@ -15,7 +15,7 @@ jobs:
       with:
         python-version: '3.12'
     - name: Install dependencies
-      run: pip install hopsworks==4.2.* pandas scikit-learn joblib
+      run: pip install hopsworks==4.2.* pandas scikit-learn joblib pyarrow hopsworks[python]
     - name: Run inference
       env:
         HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
