@@ -16,7 +16,7 @@ print("Current working directory:", os.getcwd())
 print("Logging in to Hopsworks...")
 project = hopsworks.login(
     host="c.app.hopsworks.ai",
-    project="CitiBikeTrip",
+    project="citi_bikes_project",
     api_key_value=os.getenv("HOPSWORKS_API_KEY")
 )
 print("Logged in successfully.")
