@@ -2,7 +2,10 @@ import hopsworks
 import pandas as pd
 import os
 import joblib
+import sklearn
 
+
+print(f"scikit-learn version: {sklearn.__version__}")
 # Step 1: Log in to Hopsworks
 print("Logging in to Hopsworks...")
 project = hopsworks.login(
