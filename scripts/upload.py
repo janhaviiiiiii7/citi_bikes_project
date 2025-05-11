@@ -2,8 +2,6 @@ import hopsworks
 import os
 import mlflow
 import mlflow.sklearn
-import streamlit as st
-import webbrowser
 
 
 # Step 1: Read model info
