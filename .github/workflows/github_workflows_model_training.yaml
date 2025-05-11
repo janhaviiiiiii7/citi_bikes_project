@@ -15,7 +15,7 @@ jobs:
       with:
         python-version: '3.12'
     - name: Install dependencies
-      run: pip install hopsworks==4.2.* pandas scikit-learn mlflow lightgbm dotenv
+      run: pip install hopsworks==4.2.* pandas scikit-learn==1.4.2 mlflow lightgbm dotenv
     - name: Train model
       env:
         HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
