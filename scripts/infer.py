@@ -1,8 +1,7 @@
 import hopsworks
 import pandas as pd
-import requests
-import json
 import os
+import joblib
 
 # Step 1: Log in to Hopsworks
 print("Logging in to Hopsworks...")
@@ -13,9 +12,10 @@ project = hopsworks.login(
 )
 print("Logged in successfully.")
 
-# Step 2: Get the Feature Store
-print("Getting Feature Store...")
+# Step 2: Get the Feature Store and Model Registry
+print("Getting Feature Store and Model Registry...")
 fs = project.get_feature_store()
+mr = project.get_model_registry()
 print("Feature Store retrieved:", fs)
 
 # Step 3: Load the latest data from the Feature Group
@@ -39,37 +39,31 @@ df = df.dropna()
 X = df[[f'lag_{i}' for i in range(1, 673)]]
 print("Lag features created, X shape:", X.shape)
 
-# Step 5: Get the deployed model's serving endpoint
-serving_url = "https://citibiketrippredictor.citibiketrip.hopsworks.ai/v1/models/citibiketrippredictor:predict"
-print("Using serving URL:", serving_url)
+# Step 5: Load the model from Hopsworks Model Registry
+print("Loading model from Model Registry...")
+try:
+    model_meta = mr.get_model("citi_bike_trip_predictor", version=1)
+    model_path = model_meta.download()
+    model = joblib.load(os.path.join(model_path, "model.pkl"))
+    print("Model loaded successfully.")
+except Exception as e:
+    print(f"Failed to load model: {e}")
+    raise
 
-# Step 6: Generate predictions by calling the serving endpoint
+# Step 6: Generate predictions
 print("Generating predictions...")
-predictions = []
-for i in range(len(X)):
-    input_data = X.iloc[i].values.tolist()
-    payload = {"instances": [input_data]}
-    print(f"Sending request for row {i}: {input_data[:5]}...")  # Print first 5 features for debugging
-    response = requests.post(serving_url, json=payload, headers={"Authorization": f"ApiKey {os.getenv('HOPSWORKS_API_KEY')}"})
-    if response.status_code == 200:
-        prediction = response.json()["predictions"][0]
-        predictions.append(prediction)
-        print(f"Prediction for row {i}: {prediction}")
-    else:
-        print(f"Failed to get prediction for row {i}: {response.status_code} - {response.text}")
-        raise Exception(f"Prediction failed: {response.status_code} - {response.text}")
-
-# Step 7: Add predictions to the DataFrame
+predictions = model.predict(X)
 df['predicted_trip_count'] = predictions
 print("Predictions added to DataFrame, shape:", df.shape)
 
-# Step 8: Save predictions to a new Feature Group
+# Step 7: Save predictions to a new Feature Group
 print("Saving predictions to Feature Group 'citi_bike_predictions_fg'...")
 prediction_fg = fs.get_or_create_feature_group(
     name="citi_bike_predictions_fg",
     version=1,
     description="Predicted trip counts for top 3 stations",
-    primary_key=['start_station_name', 'start_hour']
+    primary_key=['start_station_name', 'start_hour'],
+    online_enabled=False
 )
-prediction_fg.insert(df[['start_station_name', 'start_hour', 'predicted_trip_count']], write_options={'wait': True})
+prediction_fg.insert(df[['start_station_name', 'start_hour', 'predicted_trip_count']], write_options={'wait_for_job': True})
 print("Predictions saved successfully.")
