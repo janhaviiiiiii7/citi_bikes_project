@@ -9,6 +9,9 @@ import mlflow.sklearn
 import hopsworks
 import os
 from dotenv import load_dotenv
+import streamlit as st
+import webbrowser
+
 
 # Load environment variables
 load_dotenv()
