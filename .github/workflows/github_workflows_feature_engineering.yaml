@@ -1,0 +1,36 @@
+name: Feature Engineering
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Run daily at midnight
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Upgrade pip
+      run: python -m pip install --upgrade pip
+
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+
+    - name: Run feature engineering
+      run: python scripts/preprocess.py
+      env:
+        HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+
+    - name: Load data to Hopsworks Feature Group
+      run: |
+        python -c "import hopsworks; import pandas as pd; project = hopsworks.login(host='c.app.hopsworks.ai', project='CitiBikeTrip', api_key_value='${{ secrets.HOPSWORKS_API_KEY }}'); fs = project.get_feature_store(); df = pd.read_csv('data/processed_trips_top_3.csv'); fg = fs.get_or_create_feature_group(name='citi_bike_trips_fg', version=1, description='Processed trip counts for top 3 stations', primary_key=['start_station_name', 'start_hour']); fg.insert(df, write_options={'wait': True})"
+      env:
+        HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
