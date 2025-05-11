@@ -8,6 +8,10 @@ import mlflow
 import mlflow.sklearn
 import hopsworks
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Step 1: Log in to Hopsworks
 print("Logging in to Hopsworks...")
@@ -19,21 +23,22 @@ project = hopsworks.login(
 print("Logged in successfully.")
 
 # Step 2: Set MLflow tracking URI
-tracking_uri = f"https://c.app.hopsworks.ai/p/1231006/mlflow"
+tracking_uri = f"https://c.app.hopsworks.ai/p/1231006/mlflow"  # Corrected URI
 mlflow.set_tracking_uri(tracking_uri)
 print("MLflow tracking URI set to:", mlflow.get_tracking_uri())
 
 # Step 3: Create MLflow experiment if it doesn't exist
 experiment_name = "CitiBikeModels"
 try:
-    experiment = mlflow.get_experiment_by_name(experiment_name)
+    client = mlflow.tracking.MlflowClient()
+    experiment = client.get_experiment_by_name(experiment_name)
     if experiment is None:
-        mlflow.create_experiment(experiment_name)
-        print(f"Created MLflow experiment: {experiment_name}")
+        experiment_id = client.create_experiment(experiment_name)
+        print(f"Created MLflow experiment: {experiment_name} with ID {experiment_id}")
     else:
-        print(f"Using existing MLflow experiment: {experiment_name}")
+        print(f"Using existing MLflow experiment: {experiment_name} with ID {experiment.experiment_id}")
 except Exception as e:
-    print(f"Failed to create/access experiment: {e}")
+    print(f"Failed to create/access experiment: {str(e)}")
     raise
 mlflow.set_experiment(experiment_name)
 
@@ -61,6 +66,9 @@ y = df['trip_count']
 
 # Step 7: Train/test split
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
+
+# Ensure 'data' directory exists
+os.makedirs('data', exist_ok=True)
 X_train.to_csv('data/X_train.csv', index=False)
 X_test.to_csv('data/X_test.csv', index=False)
 y_train.to_csv('data/y_train.csv', index=False)
