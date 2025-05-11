@@ -1,7 +1,6 @@
 import hopsworks
 import os
-import mlflow
-import mlflow.sklearn
+import joblib
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -16,27 +15,10 @@ project = hopsworks.login(
 )
 print("Logged in successfully.")
 
-# Step 2: Set MLflow tracking URI
-mlflow.set_tracking_uri("https://c.app.hopsworks.ai/p/1231006/mlflow")  # Match train.py URI
-print("MLflow tracking URI set to:", mlflow.get_tracking_uri())
-
-# Step 3: Read model info from model_info.txt
-run_id = None
-mae = None
-with open('model_info.txt', 'r') as f:
-    for line in f:
-        key, value = line.strip().split('=')
-        if key == "MLFLOW_RUN_ID":
-            run_id = value
-        elif key == "MODEL_MAE":
-            mae = float(value)
-if run_id is None or mae is None:
-    raise ValueError("MLFLOW_RUN_ID or MODEL_MAE not found in model_info.txt")
-
-# Step 4: Get the Model Registry
+# Step 2: Get the Model Registry
 mr = project.get_model_registry()
 
-# Step 5: Check for existing model versions
+# Step 3: Check for existing model versions
 model_name = "citi_bike_trip_predictor"
 existing_models = mr.get_models(name=model_name)
 if existing_models:
@@ -45,14 +27,20 @@ if existing_models:
 else:
     new_version = 1
 
-# Step 6: Load and register the model
-print(f"Loading model from runs:/{run_id}/model...")
-model = mlflow.sklearn.load_model(f"runs:/{run_id}/model")
-model_meta = mr.sklearn.create_model(
-    name=model_name,
-    version=new_version,
-    metrics={"mae": mae},
-    description="LightGBM model for Citi Bike trip prediction"
-)
-model_meta.save(model)  # Save the loaded model object
-print(f"Model uploaded successfully as version {new_version} with MAE {mae}.")
+# Step 4: Load and register the model (using LightGBM Full as an example)
+model_path = 'models/lightgbm_full_model.pkl'
+if os.path.exists(model_path):
+    model = joblib.load(model_path)
+    with open('metrics.txt', 'r') as f:
+        lines = f.readlines()
+        mae = float([line.split('=')[1] for line in lines if 'LightGBM_Full_MAE' in line][0])
+    model_meta = mr.sklearn.create_model(
+        name=model_name,
+        version=new_version,
+        metrics={"mae": mae},
+        description="LightGBM model for Citi Bike trip prediction"
+    )
+    model_meta.save(model)
+    print(f"Model uploaded successfully as version {new_version} with MAE {mae}.")
+else:
+    raise FileNotFoundError(f"Model file {model_path} not found.")
