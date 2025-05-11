@@ -30,17 +30,21 @@ else:
 # Step 4: Load and register the model (using LightGBM Full as an example)
 model_path = 'models/lightgbm_full_model.pkl'
 if os.path.exists(model_path):
+    # Verify the model can be loaded (optional)
     model = joblib.load(model_path)
+    # Read MAE from metrics.txt
     with open('metrics.txt', 'r') as f:
         lines = f.readlines()
         mae = float([line.split('=')[1] for line in lines if 'LightGBM_Full_MAE' in line][0])
+    # Create model metadata
     model_meta = mr.sklearn.create_model(
         name=model_name,
         version=new_version,
         metrics={"mae": mae},
         description="LightGBM model for Citi Bike trip prediction"
     )
-    model_meta.save(model)
+    # Save the model file path (not the model object)
+    model_meta.save(model_path)
     print(f"Model uploaded successfully as version {new_version} with MAE {mae}.")
 else:
     raise FileNotFoundError(f"Model file {model_path} not found.")
