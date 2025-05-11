@@ -10,7 +10,6 @@ import hopsworks
 import os
 from dotenv import load_dotenv
 
-
 # Load environment variables
 load_dotenv()
 
@@ -24,21 +23,28 @@ project = hopsworks.login(
 print("Logged in successfully.")
 
 # Step 2: Set MLflow tracking URI
-mlflow.set_tracking_uri("https://c.app.hopsworks.ai/p/1231006/mlflow")
+mlflow.set_tracking_uri("https://c.app.hopsworks.ai/p/1231006/mlflow")  # Explicit URI
+# Alternative: mlflow.set_tracking_uri(project.get_mlflow().get_tracking_url())
 print("MLflow tracking URI set to:", mlflow.get_tracking_uri())
 
 # Step 3: Create MLflow experiment if it doesn't exist
 experiment_name = "CitiBikeModels"
 try:
     client = mlflow.tracking.MlflowClient()
+    print(f"Checking experiment: {experiment_name}")
     experiment = client.get_experiment_by_name(experiment_name)
     if experiment is None:
+        print(f"Creating experiment: {experiment_name}")
         experiment_id = client.create_experiment(experiment_name)
         print(f"Created MLflow experiment: {experiment_name} with ID {experiment_id}")
     else:
         print(f"Using existing MLflow experiment: {experiment_name} with ID {experiment.experiment_id}")
+except mlflow.exceptions.MlflowException as e:
+    print(f"MLflow-specific error: {str(e)}")
+    print("Ensure MLflow is enabled for this project and the API key has MLflow permissions.")
+    raise
 except Exception as e:
-    print(f"Failed to create/access experiment: {str(e)}")
+    print(f"Unexpected error: {str(e)}")
     raise
 mlflow.set_experiment(experiment_name)
 
