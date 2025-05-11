@@ -2,15 +2,12 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error
-from sklearn.ensemble import GradientBoostingRegressor
+from lightgbm import LGBMRegressor
 from sklearn.feature_selection import SelectKBest, f_regression
 import mlflow
 import mlflow.sklearn
 import hopsworks
 import os
-
-# Debug: Print current working directory
-print("Current working directory:", os.getcwd())
 
 # Step 1: Log in to Hopsworks
 print("Logging in to Hopsworks...")
@@ -21,16 +18,33 @@ project = hopsworks.login(
 )
 print("Logged in successfully.")
 
-# Step 2: Manually set MLflow tracking URI for Hopsworks
+# Step 2: Set MLflow tracking URI
 tracking_uri = f"https://c.app.hopsworks.ai/p/1228950/mlflow"
 mlflow.set_tracking_uri(tracking_uri)
 print("MLflow tracking URI set to:", mlflow.get_tracking_uri())
 
-# Step 3: Load the processed data
-df = pd.read_csv('data/processed_trips_top_3.csv')
+# Step 3: Create MLflow experiment if it doesn't exist
+experiment_name = "CitiBikeModels"
+try:
+    experiment = mlflow.get_experiment_by_name(experiment_name)
+    if experiment is None:
+        mlflow.create_experiment(experiment_name)
+        print(f"Created MLflow experiment: {experiment_name}")
+    else:
+        print(f"Using existing MLflow experiment: {experiment_name}")
+except Exception as e:
+    print(f"Failed to create/access experiment: {e}")
+    raise
+mlflow.set_experiment(experiment_name)
+
+# Step 4: Load data from Feature Group
+print("Loading data from Feature Group 'citi_bike_trips_fg'...")
+fs = project.get_feature_store()
+fg = fs.get_feature_group(name="citi_bike_trips_fg", version=1)
+df = fg.read()
 df['start_hour'] = pd.to_datetime(df['start_hour'])
 
-# Step 4: Create lag features efficiently
+# Step 5: Create lag features
 all_station_data = []
 for station in df['start_station_name'].unique():
     station_data = df[df['start_station_name'] == station].sort_values('start_hour').copy()
@@ -41,19 +55,16 @@ for station in df['start_station_name'].unique():
 df = pd.concat(all_station_data, ignore_index=True)
 df = df.dropna()
 
-# Step 5: Prepare features and target
+# Step 6: Prepare features and target
 X = df[[f'lag_{i}' for i in range(1, 673)]]
 y = df['trip_count']
 
-# Step 6: Train/test split
+# Step 7: Train/test split
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
 X_train.to_csv('data/X_train.csv', index=False)
 X_test.to_csv('data/X_test.csv', index=False)
 y_train.to_csv('data/y_train.csv', index=False)
 y_test.to_csv('data/y_test.csv', index=False)
-
-# Step 7: Set MLflow experiment
-mlflow.set_experiment("CitiBikeModels")
 
 # Model 1: Baseline (Mean)
 with mlflow.start_run(run_name="Baseline"):
@@ -65,14 +76,15 @@ with mlflow.start_run(run_name="Baseline"):
 
 # Model 2: LightGBM with 28-day lags
 with mlflow.start_run(run_name="LightGBM_Full"):
-    model = GradientBoostingRegressor()
+    model = LGBMRegressor()
     model.fit(X_train, y_train)
     predictions = model.predict(X_test)
     mae = mean_absolute_error(y_test, predictions)
     mlflow.log_metric("MAE", mae)
     mlflow.sklearn.log_model(model, "model", input_example=X_train.head(5))
-    os.environ["MLFLOW_RUN_ID"] = mlflow.active_run().info.run_id
-    os.environ["MODEL_MAE"] = str(mae)
+    run_id = mlflow.active_run().info.run_id
+    with open('model_info.txt', 'w') as f:
+        f.write(f"MLFLOW_RUN_ID={run_id}\nMODEL_MAE={mae}")
     print(f"LightGBM Full MAE: {mae}")
 
 # Model 3: LightGBM with feature reduction (top 10 features)
@@ -81,7 +93,7 @@ X_train_reduced = selector.fit_transform(X_train, y_train)
 X_test_reduced = selector.transform(X_test)
 
 with mlflow.start_run(run_name="LightGBM_Reduced"):
-    model = GradientBoostingRegressor()
+    model = LGBMRegressor()
     model.fit(X_train_reduced, y_train)
     predictions = model.predict(X_test_reduced)
     mae = mean_absolute_error(y_test, predictions)
