@@ -1,35 +1,26 @@
 name: Model Training
-
 on:
   schedule:
-    - cron: '0 0 * * *'  # Run daily at midnight
+    - cron: '0 0 * * *'
   push:
     branches: [ main ]
-
+  workflow_dispatch:
 jobs:
-  build:
-    runs-on: windows-latest
-
+  model-training:
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.12'
-
-    - name: Upgrade pip
-      run: python -m pip install --upgrade pip
-
     - name: Install dependencies
-      run: pip install -r requirements.txt
-
+      run: pip install hopsworks==4.2.* pandas scikit-learn mlflow lightgbm
     - name: Train model
+      env:
+        HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
       run: python scripts/train.py
-      env:
-        HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
-
     - name: Upload model to Hopsworks
-      run: python scripts/upload.py
       env:
         HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+      run: python scripts/upload.py
